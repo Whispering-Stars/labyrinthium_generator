@@ -7,14 +7,14 @@ use std::{
 use knossos::maze::*;
 use serde::Serialize;
 
-// Define a struct to represent the maze
+const SIZE: usize = 10;
+
 struct Maze {
     rows: usize,
     cols: usize,
     data: Vec<Vec<char>>,
 }
 
-// Define structs for JSON serialization
 #[derive(Serialize)]
 struct Cell {
     x: usize,
@@ -27,6 +27,8 @@ struct Cell {
 struct MazeJson {
     width: usize,
     height: usize,
+    start: Position,
+    goal: Position,
     maze: Vec<Cell>,
     solution: Vec<Position>,
 }
@@ -39,8 +41,8 @@ struct Position {
 
 fn main() {
     let maze = OrthogonalMazeBuilder::new()
-        .height(10)
-        .width(10)
+        .height(SIZE)
+        .width(SIZE)
         .algorithm(Box::new(GrowingTree::new(Method::Random)))
         .build();
 
@@ -56,9 +58,13 @@ fn main() {
                 }
 
                 if let Some(path) = solve_maze(&maze) {
-                    if let Err(err) =
-                        create_json_file(maze.cols, maze.rows, &maze, &path, "output/maze.json")
-                    {
+                    if let Err(err) = create_json_file(
+                        maze.cols,
+                        maze.rows,
+                        &maze,
+                        &path,
+                        format!("output/maze-{}x{}.json", SIZE, SIZE).as_str(),
+                    ) {
                         println!("Error creating JSON file: {:?}", err);
                     } else {
                         println!("JSON file created successfully.");
@@ -74,7 +80,6 @@ fn main() {
     }
 }
 
-// Function to read the content of the file and create a Maze object
 fn read_maze_from_file(filename: &str) -> Result<Maze, Error> {
     let file = File::open(filename)?;
     let reader = BufReader::new(file);
@@ -94,7 +99,6 @@ fn read_maze_from_file(filename: &str) -> Result<Maze, Error> {
     Ok(Maze { rows, cols, data })
 }
 
-// Function to solve the maze
 fn solve_maze(maze: &Maze) -> Option<Vec<(usize, usize)>> {
     let mut visited = HashSet::new();
     let mut stack = VecDeque::new();
@@ -128,7 +132,6 @@ fn solve_maze(maze: &Maze) -> Option<Vec<(usize, usize)>> {
     None
 }
 
-// Helper function to find the starting point in the maze
 fn find_start(maze: &Maze) -> (usize, usize) {
     for (i, row) in maze.data.iter().enumerate() {
         for (j, &c) in row.iter().enumerate() {
@@ -140,7 +143,6 @@ fn find_start(maze: &Maze) -> (usize, usize) {
     panic!("No starting point 'S' found in the maze.");
 }
 
-// Helper function to construct the path from the goal to the start
 fn construct_path(
     goal: (usize, usize),
     parents: &HashMap<(usize, usize), (usize, usize)>,
@@ -156,7 +158,6 @@ fn construct_path(
     path
 }
 
-// Function to create a JSON file from maze data and solution
 fn create_json_file(
     width: usize,
     height: usize,
@@ -187,9 +188,25 @@ fn create_json_file(
         .map(|&(y, x)| Position { x, y })
         .collect::<Vec<_>>();
 
+    let start: (usize, usize) = find_start(maze);
+    let goal: (usize, usize) = maze
+        .data
+        .iter()
+        .enumerate()
+        .find_map(|(y, row)| row.iter().position(|&c| c == 'G').map(|x| (x, y)))
+        .unwrap();
+
     let maze_json = MazeJson {
         width,
         height,
+        start: Position {
+            x: start.1,
+            y: start.0,
+        },
+        goal: Position {
+            x: goal.0,
+            y: goal.1,
+        },
         maze: maze_cells,
         solution: solution_cells,
     };
